@@ -19,27 +19,27 @@ Start the rbx1 TurtleBot simulation with the following commands (in different te
 
   This class has four methods:
 
-    * `__init__(self)`
-    * `translate(self)`
-    * `rotate(self)`
-    * `shutdown(self)`
+   * `__init__(self)`
+   * `translate(self)`
+   * `rotate(self)`
+   * `shutdown(self)`
 
 ## __init__
 
-    The `__init__` function sets up the ROS node and requests user input.
+   The `__init__` function sets up the ROS node and requests user input.
 
 ## translate
 
-    This function gets user input on how far to translate the robot and publishes the corresponding data to /cmd_vel.
+   This function gets user input on how far to translate the robot and publishes the corresponding data to /cmd_vel.
 
 ## rotate
 
-    This function gets user input on how far to rotate the robot and publishes the corresponding data to /cmd_vel.
+   This function gets user input on how far to rotate the robot and publishes the corresponding data to /cmd_vel.
 
 ## shutdown
 
-    Cleans up the robot by stopping any rotation / translation and logging to the console.
+   Cleans up the robot by stopping any rotation / translation and logging to the console.
 
 # Video
 
-    The YouTube link for a working demo of lab 1 is available at: [https://youtu.be/b9Ps7DrMPuw](https://youtu.be/b9Ps7DrMPuw)
+   The YouTube link for a working demo of lab 1 is available at: [https://youtu.be/b9Ps7DrMPuw](https://youtu.be/b9Ps7DrMPuw)
