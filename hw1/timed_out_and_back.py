@@ -44,13 +44,14 @@ class OutAndBack():
         self.linear_speed = 0.2
 
         # Set the rotation speed to 1.0 radians per second
-        angular_speed = 1.0
+        self.angular_speed = 1.0
 
         # Set the equivalent ROS rate variable
-        r = rospy.Rate(rate)
+        self.r = rospy.Rate(self.rate)
 
         # State flag for when to quit the program
         quit = False
+
 
         while (quit != True):
             # Get user input 
@@ -80,15 +81,19 @@ class OutAndBack():
         # Set the forward speed
         move_cmd.linear.x = self.linear_speed
 
+	# Move robot backwards
+	if (goal_distance < 0):
+		move_cmd.linear.x *= -1
+
         # How long should it take us to get there?
-        linear_duration = goal_distance / self.linear_speed
+        linear_duration = abs(goal_distance / self.linear_speed)
         
         # Move forward for a time to go the desired distance
         ticks = int(linear_duration * self.rate)
 
         for t in range(ticks):
             self.cmd_vel.publish(move_cmd)
-            r.sleep()
+            self.r.sleep()
 
         # Stop the robot before the rotation
         move_cmd = Twist()
@@ -104,15 +109,18 @@ class OutAndBack():
         # Set the angular speed
         move_cmd.angular.z = self.angular_speed
 
+	if (goal_angle < 0):
+		move_cmd.angular.z *= -1
+
         # How long should it take to rotate?
-        angular_duration = goal_angle / self.angular_speed
+        angular_duration = abs(goal_angle / self.angular_speed)
 
         # Rotate for a time to go 180 degrees
         ticks = int(angular_duration * self.rate)
 
         for t in range(ticks):           
             self.cmd_vel.publish(move_cmd)
-            r.sleep()
+            self.r.sleep()
 
         # Stop the robot before the next leg
         move_cmd = Twist()
