@@ -38,6 +38,7 @@ class OutAndBack():
         rospy.on_shutdown(self.shutdown)
 
         self.range_ahead = 1
+        self.range_right = 1
 
         # Publisher to control the robot's speed
         self.cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=5)
@@ -62,7 +63,7 @@ class OutAndBack():
         angular_tolerance = radians(1.0)
         
         # Set the rotation angle to Pi radians (180 degrees)
-        goal_angle = pi
+        goal_angle = 0
 
         # Initialize the tf listener
         self.tf_listener = tf.TransformListener()
@@ -87,71 +88,104 @@ class OutAndBack():
         
         # Initialize the position variable as a Point type
         position = Point()
-            
-        # Loop once for each leg of the trip
-        # for i in range(2):
+        # Get the starting position values     
+        (position, rotation) = self.get_odom()
+
+        x_start = position.x
+        y_start = position.y
+
+        goal_x = 10
+        goal_y = 0
+
+        obstacle_x = 0
+        obstacle_y = 0
+
         # Initialize the movement command
         move_cmd = Twist()
-        
         # Set the movement command to forward motion
         move_cmd.linear.x = linear_speed
         
-        # Get the starting position values     
-        (position, rotation) = self.get_odom()
-                    
-        x_start = position.x
-        y_start = position.y
-        
-        # Keep track of the distance traveled
-        distance = 0
-        
-        # Enter the loop to move along a side
-        while distance < goal_distance and not rospy.is_shutdown() and self.range_ahead > 0.8:
+
+        # Loop until we reach the goal
+        while (position.x != goal_x and position.y != goal_y and not rospy.is_shutdown()):
+            
+            # Initialize the movement command
+            move_cmd = Twist()
+            # Set the movement command to forward motion
+            move_cmd.linear.x = linear_speed
             # Publish the Twist message and sleep 1 cycle         
             self.cmd_vel.publish(move_cmd)
             
             r.sleep()
-    
-            # Get the current position
+
+            # Get new position and rotation
             (position, rotation) = self.get_odom()
             
-            # Compute the Euclidean distance from the start
-            distance = sqrt(pow((position.x - x_start), 2) + 
-                            pow((position.y - y_start), 2))
+            # Check if robot encountered an obstacle
+            if (self.range_ahead < 0.8):
+                # Store coordinates of encounter
+                obstacle_x = position.x
+                obstacle_y = position.y
 
-        # Stop the robot before the rotation
-        move_cmd = Twist()
-        self.cmd_vel.publish(move_cmd)
-        rospy.sleep(1)
-        
-        # Set the movement command to a rotation
-        move_cmd.angular.z = angular_speed
-        
-        # Track the last angle measured
-        last_angle = rotation
-        
-        # Track how far we have turned
-        turn_angle = 0
-            
-            # while abs(turn_angle + angular_tolerance) < abs(goal_angle) and not rospy.is_shutdown():
-            #     # Publish the Twist message and sleep 1 cycle         
-            #     self.cmd_vel.publish(move_cmd)
-            #     r.sleep()
+                # Turn left until obstacle cannot be detected
+                while (self.range_right < 10):
+                    # Initialize the movement command
+                    move_cmd = Twist()
+                    # Publish the Twist message and sleep 1 cycle         
+                    move_cmd.angular.z = angular_speed
+                    self.cmd_vel.publish(move_cmd)
+                    
+                    r.sleep()
+
+                # Trace the contour
+                tracing = True
+                while (tracing):
+                    # Initialize the movement command
+                    move_cmd = Twist()
+                    move_cmd.linear.x = linear_speed
+                    self.cmd_vel.publish(move_cmd)
+                    
+                    r.sleep()
+
+                    # On m-line
+                    if (position.y == goal_y):
+                        tracing = False
+                    # No solution
+                    elif (position.x == obstacle_x and position.y == obstacle_y):
+                        tracing = False
+                        rospy.loginfo("No solution possible.")
+                        self.shutdown()
+
+                # Rotate robot until oriented at 0 degrees
+                move_cmd = Twist()
+
+                # Set the movement command to a rotation
+                move_cmd.angular.z = angular_speed
                 
-            #     # Get the current rotation
-            #     (position, rotation) = self.get_odom()
+                # Track the last angle measured
+                last_angle = rotation
                 
-            #     # Compute the amount of rotation since the last loop
-            #     delta_angle = normalize_angle(rotation - last_angle)
-                
-            #     # Add to the running total
-            #     turn_angle += delta_angle
-            #     last_angle = rotation
-                
-            # # Stop the robot before the next leg
-            # move_cmd = Twist()
-            # self.cmd_vel.publish(move_cmd)
-            # rospy.sleep(1)
+                # Track how far we have turned
+                turn_angle = 0
+                    
+                while abs(turn_angle + angular_tolerance) < abs(goal_angle) and not rospy.is_shutdown():
+                    # Publish the Twist message and sleep 1 cycle         
+                    self.cmd_vel.publish(move_cmd)
+                    r.sleep()
+                    
+                    # Get the current rotation
+                    (position, rotation) = self.get_odom()
+                    
+                    # Compute the amount of rotation since the last loop
+                    delta_angle = normalize_angle(rotation - last_angle)
+                    
+                    # Add to the running total
+                    turn_angle += delta_angle
+                    last_angle = rotation
+                # # Stop the robot before the next leg
+                # move_cmd = Twist()
+                # self.cmd_vel.publish(move_cmd)
+                # rospy.sleep(1)
             
         # Stop the robot for good
         self.cmd_vel.publish(Twist())
@@ -168,6 +202,7 @@ class OutAndBack():
 
     def scan_callback(self, msg):
         self.range_ahead = min(msg.ranges)
+        self.range_right = msg.ranges[len(msg.ranges)]
         
     def shutdown(self):
         # Always stop the robot when shutting down the node.
