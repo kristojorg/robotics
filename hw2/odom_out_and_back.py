@@ -12,14 +12,14 @@
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation; either version 2 of the License, or
     (at your option) any later version.5
-    
+
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details at:
-    
+
     http://www.gnu.org/licenses/gpl.html
-      
+
 """
 
 import rospy
@@ -42,38 +42,38 @@ class OutAndBack():
 
         # Publisher to control the robot's speed
         self.cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size=5)
-        self.scan = rospy.Subscriber('scan', LaserScan, scan_callback)
-        
+        self.scan = rospy.Subscriber('/scan', LaserScan, self.scan_callback)
+
         # How fast will we update the robot's movement?
         rate = 20
-        
+
         # Set the equivalent ROS rate variable
         r = rospy.Rate(rate)
-        
+
         # Set the forward linear speed to 0.15 meters per second 
         linear_speed = 0.15
-        
+
         # Set the travel distance in meters
         goal_distance = 10.0
 
         # Set the rotation speed in radians per second
         angular_speed = 0.5
-        
+
         # Set the angular tolerance in degrees converted to radians
         angular_tolerance = radians(1.0)
-        
+
         # Set the rotation angle to Pi radians (180 degrees)
         goal_angle = 0
 
         # Initialize the tf listener
         self.tf_listener = tf.TransformListener()
-        
+
         # Give tf some time to fill its buffer
         rospy.sleep(2)
-        
+
         # Set the odom frame
         self.odom_frame = '/odom'
-        
+
         # Find out if the robot uses /base_link or /base_footprint
         try:
             self.tf_listener.waitForTransform(self.odom_frame, '/base_footprint', rospy.Time(), rospy.Duration(1.0))
@@ -85,7 +85,7 @@ class OutAndBack():
             except (tf.Exception, tf.ConnectivityException, tf.LookupException):
                 rospy.loginfo("Cannot find transform between /odom and /base_link or /base_footprint")
                 rospy.signal_shutdown("tf Exception")  
-        
+
         # Initialize the position variable as a Point type
         position = Point()
         # Get the starting position values     
@@ -104,23 +104,26 @@ class OutAndBack():
         move_cmd = Twist()
         # Set the movement command to forward motion
         move_cmd.linear.x = linear_speed
-        
+
 
         # Loop until we reach the goal
         while (position.x != goal_x and position.y != goal_y and not rospy.is_shutdown()):
-            
+
             # Initialize the movement command
             move_cmd = Twist()
             # Set the movement command to forward motion
             move_cmd.linear.x = linear_speed
             # Publish the Twist message and sleep 1 cycle         
             self.cmd_vel.publish(move_cmd)
-            
+
             r.sleep()
 
             # Get new position and rotation
             (position, rotation) = self.get_odom()
-            
+            # loginfo("POS_X: " + str(position.x) + ", POS_Y: " + str(position.y))
+
+            # loginfo("Min range: " + str(self.range_ahead))
+            # loginfo("Right range: " + str(self.range_right))
             # Check if robot encountered an obstacle
             if (self.range_ahead < 0.8):
                 # Store coordinates of encounter
@@ -128,68 +131,71 @@ class OutAndBack():
                 obstacle_y = position.y
 
                 # Turn left until obstacle cannot be detected
-                while (self.range_right < 10):
+                while (self.range_right < 1000):
+                    rospy.loginfo("Got here.")
                     # Initialize the movement command
                     move_cmd = Twist()
                     # Publish the Twist message and sleep 1 cycle         
                     move_cmd.angular.z = angular_speed
                     self.cmd_vel.publish(move_cmd)
-                    
+
                     r.sleep()
 
-                # Trace the contour
-                tracing = True
-                while (tracing):
-                    # Initialize the movement command
-                    move_cmd = Twist()
-                    move_cmd.linear.x = linear_speed
-                    self.cmd_vel.publish(move_cmd)
-                    
-                    r.sleep()
+                break
 
-                    # On m-line
-                    if (position.y == goal_y):
-                        tracing = False
-                    # No solution
-                    elif (position.x == obstacle_x and position.y == obstacle_y):
-                        tracing = False
-                        rospy.loginfo("No solution possible.")
-                        self.shutdown()
+            #     # Trace the contour
+            #     tracing = True
+            #     while (tracing):
+            #         # Initialize the movement command
+            #         move_cmd = Twist()
+            #         move_cmd.linear.x = linear_speed
+            #         self.cmd_vel.publish(move_cmd)
 
-                # Rotate robot until oriented at 0 degrees
-                move_cmd = Twist()
+            #         r.sleep()
 
-                # Set the movement command to a rotation
-                move_cmd.angular.z = angular_speed
-                
-                # Track the last angle measured
-                last_angle = rotation
-                
-                # Track how far we have turned
-                turn_angle = 0
-                    
-                while abs(turn_angle + angular_tolerance) < abs(goal_angle) and not rospy.is_shutdown():
-                    # Publish the Twist message and sleep 1 cycle         
-                    self.cmd_vel.publish(move_cmd)
-                    r.sleep()
-                    
-                    # Get the current rotation
-                    (position, rotation) = self.get_odom()
-                    
-                    # Compute the amount of rotation since the last loop
-                    delta_angle = normalize_angle(rotation - last_angle)
-                    
-                    # Add to the running total
-                    turn_angle += delta_angle
-                    last_angle = rotation
-                # # Stop the robot before the next leg
-                # move_cmd = Twist()
-                # self.cmd_vel.publish(move_cmd)
-                # rospy.sleep(1)
-            
+            #         # On m-line
+            #         if (position.y == goal_y):
+            #             tracing = False
+            #         # No solution
+            #         elif (position.x == obstacle_x and position.y == obstacle_y):
+            #             tracing = False
+            #             rospy.loginfo("No solution possible.")
+            #             self.shutdown()
+
+            #     # Rotate robot until oriented at 0 degrees
+            #     move_cmd = Twist()
+
+            #     # Set the movement command to a rotation
+            #     move_cmd.angular.z = angular_speed
+
+            #     # Track the last angle measured
+            #     last_angle = rotation
+
+            #     # Track how far we have turned
+            #     turn_angle = 0
+
+            #     while abs(turn_angle + angular_tolerance) < abs(goal_angle) and not rospy.is_shutdown():
+            #         # Publish the Twist message and sleep 1 cycle         
+            #         self.cmd_vel.publish(move_cmd)
+            #         r.sleep()
+
+            #         # Get the current rotation
+            #         (position, rotation) = self.get_odom()
+
+            #         # Compute the amount of rotation since the last loop
+            #         delta_angle = normalize_angle(rotation - last_angle)
+
+            #         # Add to the running total
+            #         turn_angle += delta_angle
+            #         last_angle = rotation
+            #     # # Stop the robot before the next leg
+            #     # move_cmd = Twist()
+            #     # self.cmd_vel.publish(move_cmd)
+            #     # rospy.sleep(1)
+
         # Stop the robot for good
         self.cmd_vel.publish(Twist())
-        
+
     def get_odom(self):
         # Get the current transform between the odom and base frames
         try:
@@ -202,17 +208,16 @@ class OutAndBack():
 
     def scan_callback(self, msg):
         self.range_ahead = min(msg.ranges)
-        self.range_right = msg.ranges[len(msg.ranges)]
-        
+        self.range_right = msg.ranges[0]
+
     def shutdown(self):
         # Always stop the robot when shutting down the node.
         rospy.loginfo("Stopping the robot...")
         self.cmd_vel.publish(Twist())
         rospy.sleep(1)
- 
+
 if __name__ == '__main__':
     try:
         OutAndBack()
     except:
         rospy.loginfo("Out-and-Back node terminated.")
-
