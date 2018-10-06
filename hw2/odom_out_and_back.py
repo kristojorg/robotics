@@ -22,6 +22,7 @@
 
 """
 
+import math
 import rospy
 from geometry_msgs.msg import Twist, Point, Quaternion
 from sensor_msgs.msg import LaserScan
@@ -45,25 +46,25 @@ class OutAndBack():
         self.scan = rospy.Subscriber('/scan', LaserScan, self.scan_callback)
 
         # How fast will we update the robot's movement?
-        rate = 20
+        self.rate = 20
 
         # Set the equivalent ROS rate variable
-        r = rospy.Rate(rate)
+        self.r = rospy.Rate(self.rate)
 
         # Set the forward linear speed to 0.15 meters per second 
-        linear_speed = 0.15
+        self.linear_speed = 0.15
 
         # Set the travel distance in meters
-        goal_distance = 10.0
+        goal_distance = 0.1
 
         # Set the rotation speed in radians per second
-        angular_speed = 0.5
+        self.angular_speed = 0.5
 
         # Set the angular tolerance in degrees converted to radians
         angular_tolerance = radians(1.0)
 
         # Set the rotation angle to Pi radians (180 degrees)
-        goal_angle = 0
+        goal_angle = pi
 
         # Initialize the tf listener
         self.tf_listener = tf.TransformListener()
@@ -100,10 +101,12 @@ class OutAndBack():
         obstacle_x = 0
         obstacle_y = 0
 
+        sensor_thresh = 1000.0
+
         # Initialize the movement command
         move_cmd = Twist()
         # Set the movement command to forward motion
-        move_cmd.linear.x = linear_speed
+        move_cmd.linear.x = self.linear_speed
 
 
         # Loop until we reach the goal
@@ -112,11 +115,11 @@ class OutAndBack():
             # Initialize the movement command
             move_cmd = Twist()
             # Set the movement command to forward motion
-            move_cmd.linear.x = linear_speed
+            move_cmd.linear.x = self.linear_speed
             # Publish the Twist message and sleep 1 cycle         
             self.cmd_vel.publish(move_cmd)
 
-            r.sleep()
+            self.r.sleep()
 
             # Get new position and rotation
             (position, rotation) = self.get_odom()
@@ -125,33 +128,72 @@ class OutAndBack():
             # loginfo("Min range: " + str(self.range_ahead))
             # loginfo("Right range: " + str(self.range_right))
             # Check if robot encountered an obstacle
-            if (self.range_ahead < 0.8):
+            rospy.loginfo(str(self.range_ahead))
+            if (self.range_ahead < 0.5):
                 # Store coordinates of encounter
                 obstacle_x = position.x
                 obstacle_y = position.y
 
+                rospy.loginfo(str(self.range_right))
                 # Turn left until obstacle cannot be detected
-                while (self.range_right < 1000):
-                    rospy.loginfo("Got here.")
+                while (self.range_right < sensor_thresh):
+                    rospy.loginfo("Turning...")
                     # Initialize the movement command
                     move_cmd = Twist()
                     # Publish the Twist message and sleep 1 cycle         
-                    move_cmd.angular.z = angular_speed
+                    move_cmd.angular.z = self.angular_speed
                     self.cmd_vel.publish(move_cmd)
 
-                    r.sleep()
+                    self.r.sleep()
 
-                break
 
-            #     # Trace the contour
-            #     tracing = True
-            #     while (tracing):
-            #         # Initialize the movement command
-            #         move_cmd = Twist()
-            #         move_cmd.linear.x = linear_speed
-            #         self.cmd_vel.publish(move_cmd)
+                # Trace the contour
+                tracing = True
+                while (tracing):
+                    rospy.loginfo("Tracing...")
+                    rospy.loginfo(str(self.range_right))
 
-            #         r.sleep()
+                    rospy.loginfo("Move forward...")
+                    self.translate(goal_distance)
+                    # Nothing detected on the right, turn slightly right
+                    if (math.isnan(self.range_right)):
+                        rospy.loginfo("Turning right")
+                        self.rotate(-0.3)
+                        rospy.loginfo(str(self.range_right))
+                    # while (math.isnan(self.range_right)):
+                    #     # Initialize the movement command
+                    #     move_cmd = Twist()
+                    #     # Publish the Twist message and sleep 1 cycle         
+                    #     move_cmd.angular.z = (-1) * self.angular_speed
+                    #     self.cmd_vel.publish(move_cmd)
+                    #     self.r.sleep()
+
+                    #     rospy.loginfo("Turning right...")
+                    #     rospy.loginfo(str(self.range_right))
+
+# Too close to the right, turn slightly left
+                    if (self.range_right < 0.8):
+                        rospy.loginfo("Turning left")
+                        self.rotate(0.3)
+                        rospy.loginfo(str(self.range_right))
+                        rospy.loginfo("Move forward...")
+                        self.translate(goal_distance)
+                    # while (self.range_right < sensor_thresh):
+                    #     # Initialize the movement command
+                    #     move_cmd = Twist()
+                    #     # Publish the Twist message and sleep 1 cycle         
+                    #     move_cmd.angular.z = self.angular_speed
+                    #     self.cmd_vel.publish(move_cmd)
+
+                    #     self.r.sleep()
+                    #     rospy.loginfo("Turning left...")
+                    #     rospy.loginfo(str(self.range_right))
+                    # Move a small distance
+
+                    # move_cmd.linear.x = linear_speed
+                    # self.cmd_vel.publish(move_cmd)
+
+                    # r.sleep()
 
             #         # On m-line
             #         if (position.y == goal_y):
@@ -207,8 +249,57 @@ class OutAndBack():
         return (Point(*trans), quat_to_angle(Quaternion(*rot)))
 
     def scan_callback(self, msg):
-        self.range_ahead = min(msg.ranges)
+        self.range_ahead = msg.ranges[len(msg.ranges)/2]
         self.range_right = msg.ranges[0]
+
+    def translate(self, goal_distance):
+        move_cmd = Twist()
+
+        # Set the forward speed
+        move_cmd.linear.x = self.linear_speed
+
+        # Move robot backwards
+        if (goal_distance < 0):
+            move_cmd.linear.x *= -1
+
+        # How long should it take us to get there?
+        linear_duration = abs(goal_distance / self.linear_speed)
+
+        # Move forward for a time to go the desired distance
+        ticks = int(linear_duration * self.rate)
+
+        for t in range(ticks):
+            self.cmd_vel.publish(move_cmd)
+            self.r.sleep()
+
+        # Stop the robot before the rotation
+        move_cmd = Twist()
+        self.cmd_vel.publish(move_cmd)
+        rospy.sleep(1)
+
+    def rotate(self, goal_angle):
+        move_cmd = Twist()
+
+        # Set the angular speed
+        move_cmd.angular.z = self.angular_speed
+
+        if (goal_angle < 0):
+            move_cmd.angular.z *= -1
+
+        # How long should it take to rotate?
+        angular_duration = abs(goal_angle / self.angular_speed)
+
+        # Rotate for a time to go 180 degrees
+        ticks = int(angular_duration * self.rate)
+
+        for t in range(ticks):           
+            self.cmd_vel.publish(move_cmd)
+            self.r.sleep()
+
+        # Stop the robot before the next leg
+        move_cmd = Twist()
+        self.cmd_vel.publish(move_cmd)
+        rospy.sleep(1)    
 
     def shutdown(self):
         # Always stop the robot when shutting down the node.
