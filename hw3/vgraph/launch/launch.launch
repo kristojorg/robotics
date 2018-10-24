@@ -13,4 +13,7 @@
 
   <!-- Start RViz -->
   <node type="rviz" name="rviz" pkg="rviz" args="-d $(find vgraph)/world.rviz" />
+
+  <!-- Start create_hull -->
+  <!-- <node name="hull" type="create_hull" pkg="vgraph" args="$(find vgraph)/src/create_hull.py" /> -->
 </launch>
