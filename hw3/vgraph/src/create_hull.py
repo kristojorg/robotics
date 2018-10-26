@@ -37,18 +37,36 @@ class CreateMarkers():
 
 
     def create_hulls(self):
-        p1 = Point()
-        p1.x = 0.9
-        p1.y = 0
-        p1.z = 0.01
+        # p1 = Point()
+        # p1.x = 0.9
+        # p1.y = 0
+        # p1.z = 0.01
 
-        p2 = Point()
-        p2.x = 0.9
-        p2.y = 0.5
-        p2.z = 0.01
+        # p2 = Point()
+        # p2.x = 0.9
+        # p2.y = 0.5
+        # p2.z = 0.01
 
-        self.markers.points.append(p1)
-        self.markers.points.append(p2)
+        # self.markers.points.append(p1)
+        # self.markers.points.append(p2)
+
+        # read in the obstacles
+        # for each obstacle
+            # for each point
+                # create 4 new points
+            # create a convex hull from those 4
+            # add the convex hull to the markers
+        with open('../data/world_obstacles.txt') as f:
+            lines = f.readlines()
+            lines = [x.strip() for x in lines] 
+
+            # for each obstacle, get the points
+            i = 0
+            num_obst = lines[i]
+            i += 1
+            print(len(lines))
+            while i < len(lines):
+                pass
 
 
     def init_markers(self):
